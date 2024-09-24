@@ -1,64 +1,35 @@
-# CoMFormer: Continual Learning in Semantic and Panoptic Segmentation
+# CLIP-Guided Class Incremental Semantic Segmentation with Generalization-Preserving Knowledge Distillation
+## Abstract
+Deep neural networks achieve outstanding performance on specific tasks after training. However, directly tuning these models to learn new tasks often leads to the forgetting of previous knowledge, a phenomenon known as catastrophic forgetting. This paper focuses on the Class Incremental Semantic Segmentation (CISS) task, which aims to mitigate forgetting in segmentation models. Despite the significant progress of recent methods, effective knowledge transfer across sequential tasks remains underexplored. Moreover, these methods still struggle with the semantic shift issue. Based on these observations, we introduce a novel transformer-based framework for the CISS task, designed to acquire more task-general knowledge by leveraging the well-aligned text-image feature space of CLIP.Specifically, segmentation is performed by exploiting the matching process between patch-level image features and text features, which facilitates knowledge sharing and transfer across tasks. To address semantic shift, Class-Agnostic Confidence Prediction (CACP) head is proposed and integrated into the framework, which verifies the existence of different classes independently. This prevents the semantics of a foreground class from being interfered by the ever-changing `background' class. Additionally, to maintain the ability to segment previous classes while generalizing to future ones, we incorporate Generalization-Preserving Distillation (GPD) loss and Query-based Distillation (QD) loss into our framework. We evaluate the proposed framework's effectiveness using the VOC2012 and ADE20K datasets, demonstrating superior performance compared to previous state-of-the-art methods.  Specifically, our method achieves mIoU improvements of 1.0$\%$ and 1.6$\%$ in the most challenging ADE 100-5 (11 steps) and VOC 10-1 (11 steps) settings, respectively.
 
-
-[Fabio Cermelli](https://fcdl94.github.io/), Matthieu Cord, Arthur Douillard
-
-[ [`arXiv`](https://arxiv.org/abs/2211.13999/) ] [ [`BibTeX`](#Citing) ]
-
-[comment]: <> (<div align="center">)
-
-[comment]: <> (<img src="https://bowenc0221.github.io/images/maskformerv2_teaser.png" width="100%" height="100%"/>)
-
-[comment]: <> (</div><br/>)
-
-## Installation
+## Environment
+- Build detectron2 from source 
 See [installation instructions](INSTALL.md).
+- Install pytorch
+
+ `conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=11.3 -c pytorch`
+
+- Other libraries
+- numpy == 1.24.3
+- wandb == 0.5.12
+- timm == 0.9.7
+- opencv-python == 4.8.1.78
+- continuum == 1.2.7
+
 
 ## Getting Started
 
 ### Prepare the datasets
 See [Preparing Datasets for Mask2Former](datasets/README.md).
-
-### How to configure the methods:
-Per-Pixel baseline:
-`MODEL.MASK_FORMER.PER_PIXEL True`
-
-Mask-based methods:
-`MODEL.MASK_FORMER.SOFTMASK True MODEL.MASK_FORMER.FOCAL True`
-
-CoMFormer:
-`CONT.DIST.PSEUDO True CONT.DIST.KD_WEIGHT 10.0 CONT.DIST.UKD True CONT.DIST.KD_REW True`
-
-MiB:
-`CONT.DIST.KD_WEIGHT 200.0 CONT.DIST.UKD True CONT.DIST.UCE True`
-
-PLOP:
-`CONT.DIST.PSEUDO True CONT.DIST.PSEUDO_TYPE 1  CONT.DIST.POD_WEIGHT 0.001`
+Then set the 'DETECTRON2_DATASETS' to the dataset folder in the file 'train_inc_CLIP_CISS.py'.
+### Preparing Pretrained CLIP model:
+Download the pretrained model here: /pretrained/ViT-B-16.pt
+https://openaipublic.azureedge.net/clip/models/5806e77cd80f8b59890b7e101eabd078d9fb84e6937f9e85e4ecb61988df416f/ViT-B-16.pt
 
 ### How to run experiments:
-ADE Semantic Segmenation:
-- Use config file: `cfg_file=configs/ade20k/semantic-segmentation/maskformer2_R101_bs16_90k.yaml`
-- 100-50: `CONT.BASE_CLS 100 CONT.INC_CLS 50 CONT.MODE overlap` (see examples in `scripts/ade.sh`) 
-- 100-10: `CONT.BASE_CLS 100 CONT.INC_CLS 10 CONT.MODE overlap` (see examples in `scripts/ade10.sh`)
-- 100-5: `CONT.BASE_CLS 100 CONT.INC_CLS 5 CONT.MODE overlap` (see examples in `scripts/ade5.sh`)
 
-ADE Panoptic Segmenation:
-- Use config file: `cfg_file=configs/ade20k/panoptic-segmentation/maskformer2_R50_bs16_90k.yaml`
-- 100-50: `CONT.BASE_CLS 100 CONT.INC_CLS 50 CONT.MODE overlap` (see examples in `scripts/adps.sh`) 
-- 100-10: `CONT.BASE_CLS 100 CONT.INC_CLS 10 CONT.MODE overlap` (see examples in `scripts/adps10.sh`)
-- 100-5: `CONT.BASE_CLS 100 CONT.INC_CLS 5 CONT.MODE overlap` (see examples in `scripts/adps5.sh`)
+- Use config file: `cfg_file=configs/ade20k/semantic-segmentation/configs/ade20k/semantic-segmentation/zegclip-Base-ADE20K-SemanticSegmentation.yaml`
+- see examples in 'train.sh'
 
-## <a name="Citing"></a>Citing CoMFormer
-If you use CoMFormer in your research, please use the following BibTeX entry.
-
-```BibTeX
-@article{cermelli2023comformer,
-  title={CoMFormer: Continual Learning in Semantic and Panoptic Segmentation},
-  author={Fabio Cermelli and Matthieu Cord and Arthur Douillard},
-  journal={IEEE/CVF Computer Vision and Pattern Recognition Conference},
-  year={2023}
-}
-```
-
-## Acknowledgement
-The code is largely based on [Mask2Former](https://github.com/facebookresearch/Mask2Former).
+## Results
+Results will be saved in a folder named `results/`. 

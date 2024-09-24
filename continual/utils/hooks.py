@@ -1,4 +1,4 @@
-from fvcore.common.checkpoint import PeriodicCheckpointer as _PeriodicCheckpointer
+from fvcore.common.checkpoint import Checkpointer, PeriodicCheckpointer as _PeriodicCheckpointer
 from detectron2.engine.train_loop import HookBase
 from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple
 from detectron2.engine.hooks import EvalHook
@@ -9,6 +9,15 @@ import detectron2.utils.comm as comm
 class BetterEvalHook(EvalHook):
     def _do_eval(self):
         results = self._func()
+        if comm.is_main_process():
+            cur = results["sem_seg"]["mIoU_novel"]
+            #cur = results["sem_seg"]["mIoU_new"]
+            pre = self.best
+            self.best = max(results["sem_seg"]["mIoU_new"], self.best)
+            if cur == self.best:
+                self.checkpointer.save("model_best")
+                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                print(f'from {pre} to {cur}!!!!!!!!!!!!!')
         if "confusion_matrix" in results:
             cf_mtx = results.pop("confusion_matrix")
             self.trainer.storage.put_image("confusion_matrix", cf_mtx)
@@ -45,6 +54,10 @@ class BetterPeriodicCheckpointer(_PeriodicCheckpointer, HookBase):
     It is executed every ``period`` iterations and after the last iteration.
     """
 
+    # def __init__(self, checkpointer: Checkpointer, period: int, max_iter: int | None = None, max_to_keep: int | None = None, file_prefix: str = "model") -> None:
+    #     super().__init__(checkpointer, period, max_iter, max_to_keep, file_prefix)
+    #     self.bestval = 0
+    
     def before_train(self):
         self.max_iter = self.trainer.max_iter
 

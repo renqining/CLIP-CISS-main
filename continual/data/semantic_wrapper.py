@@ -84,7 +84,8 @@ class ContinualDetectron(SegmentationClassIncremental):
         self.increment = increment
         self.initial_increment = initial_increment
         self.class_order = class_order
-        self.keep_bg = cfg.MODEL.MASK_FORMER.TEST.MASK_BG
+        #self.keep_bg = cfg.TEST.MASK_BG   (False)
+        self.keep_bg = False
         self.masking_value = masking_value
 
         self._nb_tasks = self._setup(None)
@@ -153,7 +154,7 @@ class ContinualDetectron(SegmentationClassIncremental):
             if "sem_seg" in dataset_dict:
                 dataset_dict["sem_seg"] = target_trsf(dataset_dict["sem_seg"])
                 # print(dataset_dict["sem_seg"].unique())
-            if "instances" in dataset_dict:
+            if "instances" in dataset_dict:  #differ test dont have
                 """ instances istype Instances (from detectron2.structures.instances) """
                 instances = dataset_dict["instances"]
                 instances.gt_classes = target_trsf(instances.gt_classes)

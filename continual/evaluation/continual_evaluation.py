@@ -8,7 +8,7 @@ from collections import OrderedDict
 import PIL.Image as Image
 import pycocotools.mask as mask_util
 import torch
-
+# from prettytable import PrettyTable
 from detectron2.data import DatasetCatalog, MetadataCatalog
 from detectron2.utils.comm import all_gather, is_main_process, synchronize
 from detectron2.utils.file_io import PathManager
@@ -36,7 +36,7 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
             num_classes, ignore_label: deprecated argument
         """
         self._logger = logging.getLogger(__name__)
-
+        self.cfg = cfg
         self._dataset_name = dataset_name
         self._distributed = distributed
         self._output_dir = output_dir
@@ -59,12 +59,12 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
             self._contiguous_id_to_dataset_id = None
 
         # get some info from config
-        self._num_classes = 1 + cfg.CONT.BASE_CLS + cfg.CONT.TASK * cfg.CONT.INC_CLS
-        self.base_classes = 1 + cfg.CONT.BASE_CLS
+        self._num_classes = cfg.CONT.BASE_CLS + cfg.CONT.TASK * cfg.CONT.INC_CLS
+        self.base_classes = cfg.CONT.BASE_CLS
         self.novel_classes = cfg.CONT.INC_CLS * cfg.CONT.TASK
-
+        
         self.old_classes = self.base_classes + (cfg.CONT.TASK-1) * cfg.CONT.INC_CLS \
-            if cfg.CONT.TASK > 0 else 1 + cfg.CONT.BASE_CLS
+            if cfg.CONT.TASK > 0 else cfg.CONT.BASE_CLS 
         self.new_classes = cfg.CONT.INC_CLS if cfg.CONT.TASK > 0 else self.base_classes
         # Background is always present in evaluation, so add +1
         self._order = cfg.CONT.ORDER if cfg.CONT.ORDER is not None else list(range(1, self._num_classes))
@@ -72,16 +72,19 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
         self._task = cfg.CONT.TASK
 
         # assume class names has background and it's the first
-        self._class_names = ['background']
+        self._class_names = []
         self._class_names += [meta.stuff_classes[x] for x in self._order[:self._num_classes-1]]  # sort class names
         self._ignore_label = meta.ignore_label
 
     def reset(self):
-        self._conf_matrix = np.zeros((self._num_classes + 1, self._num_classes + 1), dtype=np.int64)
+        # self._conf_matrix = np.zeros((self._num_classes + 1, self._num_classes + 1), dtype=np.int64)
         self._predictions = []
-
+        self._conf_matrix = np.zeros((self._num_classes+1, self._num_classes+1), dtype=np.int64)
+        self._results_1 = []
+        
     def process(self, inputs, outputs):
         """
+        
         Args:
             inputs: the inputs to a model.
                 It is a list of dicts. Each dict corresponds to an image and
@@ -90,18 +93,23 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
                 (Tensor [H, W]) or list of dicts with key "sem_seg" that contains semantic
                 segmentation prediction in the same format.
         """
+        
         for input, output in zip(inputs, outputs):
-
-            output = output["sem_seg"].argmax(dim=0).to(self._cpu_device)
-            pred = np.array(output, dtype=np.int)
-            # with PathManager.open(self.input_file_to_gt_file[input["file_name"]], "rb") as f:
-            #     gt = np.array(Image.open(f), dtype=np.int)
-            gt = np.array(input['sem_seg'], dtype=np.int)
-
-            gt[gt == self._ignore_label] = self._num_classes
+            # if '841' in inputs[0]['file_name']:
+            #     print('get')
+            
+            output = output["sem_seg"].argmax(dim=0).to(self._cpu_device)#0-99  now 0-100 100for bg 
+            pred = np.array(output, dtype=np.int32)  # w,h
+            
+            gt = np.array(input['sem_seg'], dtype=np.int32) #0->bg  255
+            
+            gt[gt == 0] = 255
+            gt = gt -1
+            gt[gt == 254] = 255
+            gt[gt == self._ignore_label] = self._num_classes  
 
             self._conf_matrix += np.bincount(
-                (self._num_classes + 1) * pred.reshape(-1) + gt.reshape(-1),
+                (self._num_classes+1) * pred.reshape(-1) + gt.reshape(-1), 
                 minlength=self._conf_matrix.size,
             ).reshape(self._conf_matrix.shape)
 
@@ -121,25 +129,27 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
             conf_matrix_list = all_gather(self._conf_matrix)
             self._predictions = all_gather(self._predictions)
             self._predictions = list(itertools.chain(*self._predictions))
+            
             if not is_main_process():
                 return
-
+            
             self._conf_matrix = np.zeros_like(self._conf_matrix)
             for conf_matrix in conf_matrix_list:
                 self._conf_matrix += conf_matrix
-
+                
+        
         if self._output_dir:
             PathManager.mkdirs(self._output_dir)
             file_path = os.path.join(self._output_dir, "sem_seg_predictions.json")
             with PathManager.open(file_path, "w") as f:
                 f.write(json.dumps(self._predictions))
 
-        acc = np.full(self._num_classes, np.nan, dtype=np.float)
-        iou = np.full(self._num_classes, np.nan, dtype=np.float)
-        tp = self._conf_matrix.diagonal()[:-1].astype(np.float)
-        pos_gt = np.sum(self._conf_matrix[:-1, :-1], axis=0).astype(np.float)
+        acc = np.full(self._num_classes, np.nan, dtype=np.float64)
+        iou = np.full(self._num_classes, np.nan, dtype=np.float64)
+        tp = self._conf_matrix.diagonal()[:-1].astype(np.float64)
+        pos_gt = np.sum(self._conf_matrix[:-1, :-1], axis=0).astype(np.float64)
         class_weights = pos_gt / np.sum(pos_gt)
-        pos_pred = np.sum(self._conf_matrix[:-1, :-1], axis=1).astype(np.float)
+        pos_pred = np.sum(self._conf_matrix[:-1, :-1], axis=1).astype(np.float64)
 
         acc_valid = pos_gt > 0
         acc[acc_valid] = tp[acc_valid] / pos_gt[acc_valid]
@@ -152,12 +162,12 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
         fiou = np.sum(iou[acc_valid] * class_weights[acc_valid])
         pacc = np.sum(tp) / np.sum(pos_gt)
 
-        miou_base = np.sum(iou[1:self.base_classes]) / (self.base_classes-1)
-        miou_old = np.sum(iou[1:self.old_classes]) / (self.old_classes-1)
+        miou_base = np.sum(iou[:self.base_classes]) / (self.base_classes)
+        miou_old = np.sum(iou[:self.old_classes]) / (self.old_classes)
         miou_new = np.sum(iou[self.old_classes:]) / self.new_classes
         miou_novel = np.sum(iou[self.base_classes:]) / self.novel_classes if self.novel_classes > 0 else 0.
 
-        fg_iou = (np.sum(self._conf_matrix[1:-1, 1:-1]) + self._conf_matrix[0, 0]) / np.sum(self._conf_matrix[:-1, :-1])
+        # fg_iou = (np.sum(self._conf_matrix[1:-1, 1:-1]) + self._conf_matrix[0, 0]) / np.sum(self._conf_matrix[:-1, :-1])
 
         res = {}
         cls_iou = []
@@ -170,7 +180,7 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
         res["mIoU_base"] = 100 * miou_base
 
         res["fwIoU"] = 100 * fiou
-        res["fgIoU"] = 100 * fg_iou
+        # res["fgIoU"] = 100 * fg_iou
         for i, name in enumerate(self._class_names):
             res["IoU-{}".format(name)] = 100 * iou[i]
             cls_iou.append(100 * iou[i])
@@ -188,7 +198,7 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
 
         self._logger.info(results)
         self.print_on_file(results, cls_iou, cls_acc)
-
+        
         results["confusion_matrix"] = self.confusion_matrix_to_fig()
         return results
 

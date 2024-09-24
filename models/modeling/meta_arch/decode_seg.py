@@ -205,23 +205,11 @@ class ATMSingleHeadSeg(nn.Module):
         self.proj_norm = proj_norm
         self.decoder = atm_decoders
         self.class_embed = nn.Linear(3*dim, 2, bias=False)
-        # self.class_embed = nn. Sequential(
-        #     nn.Linear(3*dim, dim // 4, bias=False),
-        #     # nn.ReLU(inplace = True),
-        #     nn.Linear(dim // 4, 2, bias=False),
-        #     # nn.ReLU(inplace =True)
-        # )   
-        # self.class_embed = nn. Sequential(
-        #     nn.Linear(dim, dim // 2),
-        #     # nn.ReLU(inplace = True),
-        #     nn.Linear(dim // 2, 2),
-        #     # nn.ReLU(inplace =True)
-        # )   
+       
         self.q_proj = nn.Linear(dim * 2, dim)
-        # self.conv = nn.Conv2d(768,512,1)
-        # self.thresh_bg = nn.Parameter(torch.tensor(0.0))
+        
         if self.step == 0:
-            self.init_weights()  #whether to use???
+            self.init_weights()  
 
     @classmethod
     def from_config(cls, cfg, input_size=None):
@@ -258,23 +246,15 @@ class ATMSingleHeadSeg(nn.Module):
         t0 = text_token
         bs = cls_token.shape[0]
         t0 = t0.expand(bs, -1, -1)
-        #v1
-        #qt = torch.einsum("bd,bcd->bcd", cls_token, t0) #b,c,d
-        #v2
-        # qt = torch.einsum("bd,bcd->bc", cls_token, t0) #b,c
-        # qt = F.softmax(qt, dim=-1).unsqueeze(-1) #b,c,1
         
         q = self.get_qs(text_token, cls_token)
         
         q0 = q #b,c,d
         q = q.transpose(0,1)
-        # q.shape  num_cls, bs, dim
         
         out = {}
         out["features"] = inputs
-        # out["features_conv"] = []
-        # for i in range(len(inputs)):
-        #     out["features_conv"].append(self.conv(inputs[i]))
+        
         out["txt_embedding"] = text_token
         out["cls_token"] = cls_token
         
@@ -291,12 +271,9 @@ class ATMSingleHeadSeg(nn.Module):
             x_ = norm_(proj_(x_))
 
             q, attn = decoder_(q, x_.transpose(0, 1))  #attn [bs, num_head, num_cls, num_patch]
-            #outputs_class.append(self.class_embed(q.transpose(0, 1) - q0))
-            #outputs_class.append(self.class_embed(torch.cat((q.transpose(0, 1) - q0, q.transpose(0, 1)*q0),dim = -1)))
+            
             outputs_class.append(self.class_embed(torch.cat((q.transpose(0, 1) - q0, q.transpose(0, 1)*q0, torch.einsum("bd,bcd->bcd", cls_token, t0)),dim = -1)))
-            #outputs_class.append(self.class_embed(torch.cat((q.transpose(0, 1) - q0, torch.einsum("bd,bcd->bcd", cls_token, t0)),dim = -1)))
-            
-            
+           
             attn = attn.transpose(-1, -2)
             attn = self.d3_to_d4(attn)
             qs.append(q.transpose(0,1))
@@ -349,16 +326,6 @@ class ATMSingleHeadSeg(nn.Module):
             for a in outputs_seg_masks[:-1]
         ]
     
-    # @torch.jit.unused
-    # def _set_aux_loss(self, outputs_class, outputs_seg_masks):
-    #     # this is a workaround to make torchscript happy, as torchscript
-    #     # doesn't support dictionary with non-homogeneous values, such
-    #     # as a dict having both a Tensor and a list.
-    #     return [
-    #         {"pred_logits": a, "pred_masks": b}
-    #         for a, b in zip(outputs_class[:-1], outputs_seg_masks[:-1])
-    #     ]
-        
         
     def d3_to_d4(self, t):
         n, hw, c = t.size()

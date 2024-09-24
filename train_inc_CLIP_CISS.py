@@ -632,13 +632,7 @@ def setup(args):
     # Setup logger for "mask_former" module
     setup_logger(output=cfg.OUTPUT_DIR, distributed_rank=comm.get_rank(), name="mask2former")
     if comm.get_rank() == 0 and cfg.WANDB:
-        wandb.init(project="nn", 
-                   entity="renqining2022", 
-                   name=cfg.NAME + "_step" + str(cfg.CONT.TASK),
-                   config=cfg, 
-                   sync_tensorboard=True, 
-                   group=cfg.TASK_NAME, 
-                   settings=wandb.Settings(start_method="fork"))
+        wandb.init()
 
     return cfg
 

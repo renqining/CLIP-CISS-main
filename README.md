@@ -21,7 +21,6 @@ See [installation instructions](INSTALL.md).
 
 ### Prepare the datasets
 See [Preparing Datasets for Mask2Former](datasets/README.md).
-Then set the 'DETECTRON2_DATASETS' to the dataset folder in the file 'train_inc_CLIP_CISS.py'.
 ### Preparing Pretrained CLIP model:
 Download the pretrained model here: /pretrained/ViT-B-16.pt
 https://openaipublic.azureedge.net/clip/models/5806e77cd80f8b59890b7e101eabd078d9fb84e6937f9e85e4ecb61988df416f/ViT-B-16.pt

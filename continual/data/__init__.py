@@ -1,0 +1,2 @@
+from .semantic_wrapper import ContinualDetectron
+from .instance_wrapper import InstanceContinualDetectron
